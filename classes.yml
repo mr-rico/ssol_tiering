@@ -1,0 +1,40 @@
+---
+  - name: Create tiering structure for projects
+    hosts: localhost
+    gather_facts: no
+    ignore_errors: yes
+    become: no
+    tasks:
+      - name: Enumerate list of all users
+        shell: oc get users --show-labels --no-headers=true
+        register: all_users
+
+      - name: Enumerate list of all cluster quotas
+        shell: oc get clusterquota --show-labels --no-headers=true
+        register: all_clusterquotas
+
+      - name: Apply quota to bronze users
+        shell: oc create clusterquota user-bronze-{{ item.split( " " )[0] }} --project-annotation-selector openshift.io/requester={{ item.split( " " )[0] }} --hard pods=5
+        loop: "{{ all_users['stdout_lines'] }}"
+        when: 
+          - "'class=bronze' in item.split( \" \" )[(all_users['stdout_lines'][1].split( \" \" ) | length) - 1]"
+#          - "'user-bronze-' item.split( \" \" )[0] not in all_clusterquotas['stdout_lines']" 
+
+      - name: Apply quota to silver users
+        shell: oc create clusterquota user-silver-{{ item.split( " " )[0] }} --project-annotation-selector openshift.io/requester={{ item.split( " " )[0] }} --hard pods=10
+        loop: "{{ all_users['stdout_lines'] }}"
+        when: 
+          - "'class=silver' in item.split( \" \" )[(all_users['stdout_lines'][1].split( \" \" ) | length) - 1]"
+
+      - name: Apply quota to gold  users
+        shell: oc create clusterquota user-gold-{{ item.split( " " )[0] }} --project-annotation-selector openshift.io/requester={{ item.split( " " )[0] }} --hard pods=15
+        loop: "{{ all_users['stdout_lines'] }}"
+        when: 
+          - "'class=gold' in item.split( \" \" )[(all_users['stdout_lines'][1].split( \" \" ) | length) - 1]"
+
+      - name: Debug
+        debug:
+          msg: "user-bronze-{{ item.split( \" \" )[0] }}"
+          #var: all_clusterquotas['stdout_lines']
+        loop: "{{ all_users['stdout_lines'] }}"
+
